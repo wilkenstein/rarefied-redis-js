@@ -26,21 +26,13 @@
         rarefied_redis.RedisListAdapter = require('./adapter/redis-list-adapter.js');
         rarefied_redis.RedisScanner = require('./util/redis-scanner.js');
         rarefied_redis.RedisExpirer = require('./util/redis-expirer.js');
-        rarefied_redis.RedisQueue = require('./queue/redis-queue.js');
-        rarefied_redis.RedisFifo = require('./queue/redis-fifo.js');
-        rarefied_redis.RedisReliableFifo = require('./queue/redis-reliable-fifo.js');
         rarefied_redis.RedisReliableDeleter = require('./reliable/redis-reliable-deleter.js');
         rarefied_redis.RedisReliableLocker = require('./reliable/redis-reliable-locker.js');
         rarefied_redis.RedisReliableMover = require('./reliable/redis-reliable-mover.js');
         rarefied_redis.RedisReliableProducer = require('./reliable/redis-reliable-producer.js');
         rarefied_redis.RedisReliableConsumer = require('./reliable/redis-reliable-consumer.js');
-        rarefied_redis.RedisGuaranteedMessageQueue = require('./guaranteed/redis-guaranteed-message-queue.js');
         rarefied_redis.RedisConcurrency = require('./concurrency/redis-concurrency.js');
         rarefied_redis.redisCAS = require('./concurrency/redis-cas.js');
-        rarefied_redis.RedisTimeSeries = require('./timeseries/redis-timeseries.js');
-        rarefied_redis.RedisDeltaTimeSeries = require('./timeseries/redis-delta-timeseries.js');
-        rarefied_redis.RedisFixedSampleTimeSeries = require('./timeseries/redis-fixed-sample-timeseries.js');
-        rarefied_redis.RedisTimeSeriesDb = require('./timeseries/redis-timeseries-db.js');
     }
     else {
         rarefied_redis.redis_util = root.redis_util;
@@ -48,21 +40,13 @@
         rarefied_redis.RedisListAdapter = root.RedisListAdapter;
         rarefied_redis.RedisScanner = root.RedisScanner;
         rarefied_redis.RedisExpirer = root.RedisExpirer;
-        rarefied_redis.RedisQueue = root.RedisQueue;
-        rarefied_redis.RedisFifo = root.RedisFifo;
-        rarefied_redis.RedisReliableFifo = root.RedisReliableFifo;
         rarefied_redis.RedisReliableDeleter = root.RedisReliableDeleter;
         rarefied_redis.RedisReliableLocker = root.RedisReliableLocker;
         rarefied_redis.RedisReliableMover = root.RedisReliableMover;
         rarefied_redis.RedisReliableProducer = root.RedisReliableProducer;
         rarefied_redis.RedisReliableConsumer = root.RedisReliableConsumer;
-        rarefied_redis.RedisGuaranteedMessageQueue = root.RedisGuaranteedMessageQueue;
         rarefied_redis.RedisConcurrency = root.RedisConcurrency;
         rarefied_redis.redisCAS = root.redisCAS;
-        rarefied_redis.RedisTimeSeries = root.RedisTimeSeries;
-        rarefied_redis.RedisDeltaTimeSeries = root.RedisDeltaTimeSeries;
-        rarefied_redis.RedisFixedSampleTimeSeries = root.RedisFixedSampleTimeSeries;
-        rarefied_redis.RedisTimeSeriesDb = root.RedisTimeSeriesDb;
     }
 
     function toPromise(f, context, deferFactory) {
