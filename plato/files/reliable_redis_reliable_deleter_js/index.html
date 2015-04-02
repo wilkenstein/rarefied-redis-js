@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>reliable/redis-reliable-deleter.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">76.64</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">145</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">38.98</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.13</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, require:false */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    var cas = typeof require === &#039;function&#039; ? require(&#039;../concurrency/redis-cas.js&#039;) : root.redisCAS;
+    var exists = typeof require === &#039;function&#039; ? require(&#039;../util/redis-util.js&#039;).exists : root.redis_util.exists;
+    var RedisListAdapter = typeof require === &#039;function&#039; ? require(&#039;../adapter/redis-list-adapter.js&#039;) : root.RedisListAdapter;
+
+    function delF(client, key, element, getF, setMulti, callback) {
+        cas(client, key, function (client, key, cb) {
+            return getF(client, key, element, cb);
+        }, function (client, key, multi, value) {
+            var args;
+            if (exists(element) &amp;&amp; exists(value)) {
+                if (value === element) {
+                    args = [multi, key].concat(Array.prototype.slice.call(arguments).slice(3));
+                    return setMulti.apply(null, args);
+                }
+            }
+            return multi;
+        }, callback);
+    }
+
+    /**
+     * Reliably delete an abstraction. The semantics of reliable deletion are that
+     * the element being deleted actually exists in the structure, and the structure
+     * hasn&#039;t changed at the time of deletion. For instance, with redlocks, the unlocker
+     * must know the current value of the lock in order to delete it.
+     *
+     * @memberof! RarefiedRedis.Reliable
+     * @class
+     * @param {redisClient} client The redis client
+     */
+    function RedisReliableDeleter(client, verifier, multier) {
+        this.client = client;
+        this.verifier = verifier;
+        this.multier = multier;
+        return this;
+    }
+
+    RedisReliableDeleter.prototype.del = function (key, element, callback) {
+        delF(this.client, key, element, this.verifier, this.multier, callback);
+        return this;
+    };
+
+    RedisReliableDeleter.strdeleter = function (client) {
+        return new RedisReliableDeleter(client, function (client, key, element, cb) {
+            return client.get(key, cb);
+        }, function (multi, key) {
+            return multi.del(key);
+        });
+    };
+
+    RedisReliableDeleter.sdeleter = function (client) {
+        return new RedisReliableDeleter(client, function (client, key, element, cb) {
+            client.sismember(key, element, function (err, reply) {
+                return cb(err, reply === 1 ? element : null);
+            });
+        }, function (multi, key, value) {
+            return multi.srem(key, value);
+        });
+    };
+
+    RedisReliableDeleter.zdeleter = function (client) {
+        return new RedisReliableDeleter(client, function (client, key, element, cb) {
+            client.zscore(key, element, function (err, reply) {
+                if (err) {
+                    return cb(err);
+                }
+                if (reply === null) {
+                    return cb(null, null);
+                }
+                cb(null, element);
+            });
+        }, function (multi, key, value) {
+            return multi.zrem(key, value);
+        });
+    };
+
+    RedisReliableDeleter.hdeleter = function (client) {
+        return new RedisReliableDeleter(client, function (client, key, field, cb) {
+            client.hexists(key, field, cb);
+        }, function (multi, key, value) {
+            return multi.hdel(key, value);
+        });
+    };
+
+    RedisReliableDeleter.ldeleter = function (client) {
+        return new RedisReliableDeleter(client, function (client, key, element, cb) {
+            if (typeof element === &#039;number&#039;) {
+                return client.lindex(key, element, function (err, reply) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    if (reply === null) {
+                        return cb(null, null);
+                    }
+                    return cb(null, element, reply);
+                });
+            }
+            (new RedisListAdapter(client, key)).indexOf(element, function (err, index) {
+                if (err) {
+                    return cb(err);
+                }
+                if (index === -1) {
+                    return cb(new Error(&#039;ERR index out of range&#039;));
+                }
+                cb(null, element, index);
+            });
+        }, function (multi, key, value, index) {
+            var val, tmp;
+            if (typeof value === &#039;number&#039;) {
+                tmp = value;
+                value = index;
+                index = tmp;
+            }
+            // Make the value unique within the list so that we can delete it using lrem.
+            // There is no way with redis to delete by index.
+            val = value + &#039;;&#039; + Math.random();
+            return multi
+                .lset(key, index, val)
+                .lrem(key, 1, val);
+        });
+    };
+
+    // Export the reliable object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `RedisReliableDeleter` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = RedisReliableDeleter;
+        }
+        exports.RedisReliableDeleter = RedisReliableDeleter;
+    } 
+    else {
+        root.RedisReliableDeleter = RedisReliableDeleter;
+    }
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

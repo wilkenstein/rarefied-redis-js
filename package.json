@@ -6,7 +6,7 @@
         "url": "git://github.com/wilkenstein/rarefied-redis-js.git"
     },
     "main": "rarefied-redis.js",
-    "version": "0.0.1",
+    "version": "0.0.1-2",
     "devDependencies": {
         "redis-js": "0.0.9-5",
         "redis": "~0.12",
@@ -33,9 +33,9 @@
         "jsdoc": "~3.2"
     },
     "scripts": {
-        "pretest": "node_modules/.bin/jshint rarefied-redis.js util/*.js reliable/*.js",
+        "pretest": "node_modules/.bin/jshint rarefied-redis.js util/*.js reliable/*.js concurrency/*.js",
         "test": "node_modules/.bin/istanbul cover node_modules/.bin/_mocha -- -R spec -t 60s -s 5s test/mocha",
-        "posttest": "node_modules/.bin/plato -d plato/ rarefied-redis.js adapter/*.js util/*.js reliable/*.js",
+        "posttest": "node_modules/.bin/plato -d plato/ rarefied-redis.js adapter/*.js util/*.js reliable/*.js concurrency/*.js",
         "test-integrations": "REDIS_JS_TO_NODE_REDIS=1 node_modules/.bin/_mocha -R spec -t 60s -s 5s test/mocha",
         "test-phantomjs": "npm i karma-phantomjs-launcher && ./node_modules/karma/bin/karma start",
         "test-firefox": "./node_modules/karma/bin/karma start --browsers Firefox",

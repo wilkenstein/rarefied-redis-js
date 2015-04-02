@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>util/redis-expirer.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">70.96</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">140</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">52.65</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.40</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, require:false, clearTimeout:false, setTimeout:false */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    var gather = typeof require === &#039;function&#039; ? require(&#039;./redis-util.js&#039;).gather : root.redis_util.gather;
+    var each = typeof require === &#039;function&#039; ? require(&#039;./redis-util.js&#039;).asyncForEach : root.redis_util.asyncForEach;
+    var uuidv4 = typeof require === &#039;function&#039; ? require(&#039;./redis-uuid.js&#039;).redis_uuid.v4 : root.redis_uuid.v4;
+    var RedisScanner = typeof require === &#039;function&#039; ? require(&#039;./redis-scanner.js&#039;).RedisScanner : root.RedisScanner;
+
+    function RedisExpirer(client, listkey, separator) {
+        this.client = client;
+        this.listkey = listkey;
+        this.separator = separator || &#039;;&#039;;
+        this.expiries = {};
+        this.scanner = RedisScanner.lscanner(this.client);
+        return this;
+    }
+
+    RedisExpirer.prototype.expire = function (onExpired, key, timeout, element, callback) {
+        var g = gather(this.expire).apply(null, arguments);
+        var that = this;
+        callback = g.callback;
+        if (!(key in this.expiries)) {
+            this.expiries[key] = {};
+        }
+        each(g.list, function (elem, iter) {
+            var id = uuidv4();
+            var lelem = id + that.separator + key + that.separator + element;
+            if (key in that.expiries &amp;&amp; elem in that.expiries[key]) {
+                clearTimeout(that.expiries[key][elem]);
+            }
+            that
+                .client
+                .multi()
+                .setex(id, timeout, element)
+                .lpush(that.listkey, lelem)
+                .exec(function (err) {
+                    if (err) {
+                        iter(err);
+                    }
+                    that.expiries[key][elem] = setTimeout(function () {
+                        that.client.exists(id, function (err, exists) {
+                            if (err) {
+                                return onExpired(err, key, elem);
+                            }
+                            if (!exists) {
+                                that.client.lrem(that.listkey, 1, lelem);
+                                delete that.expiries[key][elem];
+                                return onExpired(null, key, elem);
+                            }
+                        });
+                    }, timeout*1000 + 50);
+                    iter();
+                });
+        }, callback);
+        return this;
+    };
+
+    RedisExpirer.prototype.persist = function (key, element, callback) {
+        var that = this;
+        this.scanner.scan(this.listkey, function (range) {
+            range.forEach(function (idkeyelement) {
+                var split = idkeyelement.split(that.separator);
+                var id = split[0];
+                var key = split[1];
+                var element = split[2];
+                if (key === key &amp;&amp; element === element) {
+                    that
+                        .client
+                        .multi()
+                        .del(id)
+                        .lrem(that.listkey, 1, idkeyelement)
+                        .exec();
+                    clearTimeout(that.expiries[key][element]);
+                    delete that.expiries[key][element];
+                }
+            });
+        }, callback);
+        return this;
+    };
+
+    RedisExpirer.prototype.exists = function (key, element, callback) {
+        var that = this;
+        this.scanner.scan(this.listkey, function (range) {
+            range.forEach(function (idkeyelement) {
+                var split = idkeyelement.split(that.separator);
+                var key = split[1];
+                var element = split[2];
+                if (key === key &amp;&amp; element === element) {
+                    return callback(null, 1);
+                }
+            });
+        }, function (err) {
+            callback(err, 0);
+        });
+        return this;
+    };
+
+    RedisExpirer.prototype.check = function (onExpired, callback) {
+        var that = this;
+        this.scanner.scan(this.listkey, function (range) {
+            range.forEach(function (idkeyelement) {
+                var split = idkeyelement.split(that.separator);
+                var id = split[0];
+                var key = split[1];
+                var element = split[2];
+                that.client.exists(id, function (err, exists) {
+                    if (err) {
+                        return onExpired(err, key, element);
+                    }
+                    if (!exists) {
+                        that.client.lrem(that.listkey, 1, idkeyelement);
+                        return onExpired(null, key, element);
+                    }
+                });
+            });
+        }, callback);
+        return this;
+    };
+
+    // Export the expirer object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `RedisExpirer` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = RedisExpirer;
+        }
+        exports.RedisExpirer = RedisExpirer;
+    } 
+    else {
+        root.RedisExpirer = RedisExpirer;
+    }
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>reliable/redis-reliable-producer.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">79.71</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">184</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">41.80</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.60</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, require:false */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    var cas = typeof require === &#039;function&#039; ? require(&#039;../concurrency/redis-cas.js&#039;) : root.redisCAS;
+    var gather = typeof require === &#039;function&#039; ? require(&#039;../util/redis-util.js&#039;).gather : root.redis_util.gather;
+
+    function setF(client, key, type, setMulti, callback) {
+        cas(client, key, function (c, k, cb) {
+            if (type === null) {
+                return cb(null, &#039;none&#039;);
+            }
+            return c.type(k, cb);
+        }, function (client, key, multi, t) {
+            if (t !== &#039;none&#039; &amp;&amp; t !== type) {
+                return multi;
+            }
+            return setMulti(multi, key);
+        }, callback);
+    }
+
+    function produceF(client, key, type, multiF, callback) {
+        var g = gather(produceF).apply(null, arguments);
+        callback = g.callback;
+        setF(client, key, type, function (multi) {
+            return g
+                .list
+                .slice(1)
+                .reduce(function (multi, value) {
+                    return multiF(multi, value);
+                }, multi);
+        }, callback);
+    }
+
+    function xproduceF(type, gatherF, multiF) {
+        var f;
+        f = function (client, key, element, callback) {
+            var g = gather(f, 3).apply(null, arguments);
+            g.list = gatherF(g.list);
+            g.list = [client, key, type, multiF].concat(g.list);
+            callback = g.callback;
+            produceF.apply(null, g.list.concat([callback]));
+        };
+        return f;
+    }
+    
+    /**
+     * Reliably produce an element into an abstraction. The semantics of reliable here
+     * mean that a producer produces into a redis structure that contains the right type
+     * or doesn&#039;t produce at all, and that producers do not starve consumers or other
+     * produces out from the abstraction.
+     *
+     * @memberof! RarefiedRedis.Reliable
+     * @class
+     * @param {redisClient} client The client to use.
+     */
+    function RedisReliableProducer(client, type, gatherer, multier) {
+        this.client = client;
+        this.type = type;
+        this.gatherer = gatherer;
+        this.multier = multier;
+        return this;
+    }
+
+    RedisReliableProducer.prototype.produce = function (key, value, callback) {
+        xproduceF(this.type, this.gatherer, this.multier).apply(null, [this.client].concat(Array.prototype.slice.call(arguments)));
+        return this;
+    };
+
+    RedisReliableProducer.strproducer = function (client) {
+        return new RedisReliableProducer(client, &#039;string&#039;, function (keysvalues) {
+            return keysvalues
+                .map(function (kv, index) {
+                    if (index % 2 === 0) {
+                        return [kv, keysvalues[index + 1]];
+                    }
+                    return null;
+                })
+                .filter(function (kv) {
+                    return kv !== null;
+                });
+        }, function (multi, keyvalue) {
+            return multi.set(keyvalue[0], keyvalue[1]);
+        });
+    };
+
+    RedisReliableProducer.sproducer = function (client) {
+        return new RedisReliableProducer(client, &#039;set&#039;, function (keyvalues) {
+            var key = keyvalues[0];
+            return keyvalues
+                .slice(1)
+                .map(function (value) {
+                    return [key, value];
+                });
+        }, function (multi, keyvalue) {
+            return multi.sadd(keyvalue[0], keyvalue[1]);
+        });
+    };
+
+    RedisReliableProducer.zproducer = function (client) {
+        return new RedisReliableProducer(client, &#039;zset&#039;, function (keyscoresvalues) {
+            var key = keyscoresvalues[0];
+            return keyscoresvalues
+                .slice(1)
+                .map(function (sv, index) {
+                    if (index % 2 === 0) {
+                        return [key, sv, keyscoresvalues[index + 1]];
+                    }
+                    return null;
+                })
+                .filter(function (sv) {
+                    return sv !== null;
+                });
+        }, function (multi, keyscorevalue) {
+            return multi.zadd(keyscorevalue[0], keyscorevalue[1], keyscorevalue[2]);
+        });
+    };
+
+    RedisReliableProducer.hproducer = function (client) {
+        return new RedisReliableProducer(client, &#039;hash&#039;, function (keyfieldsvalues) {
+            var key = keyfieldsvalues[0];
+            return keyfieldsvalues
+                .slice(1)
+                .map(function (fv, index) {
+                    if (index % 2 === 0) {
+                        return [key, fv, keyfieldsvalues[index + 1]];
+                    }
+                    return null;
+                })
+                .filter(function (fv) {
+                    return fv !== null;
+                });
+        }, function (multi, keyfieldvalue) {
+            return multi.hset(keyfieldvalue[0], keyfieldvalue[1], keyfieldvalue[2]);
+        });
+    };
+
+    RedisReliableProducer.lproducerrpush = function (client) {
+        return new RedisReliableProducer(client, &#039;list&#039;, function (keyvalues) {
+            var key = keyvalues[0];
+            return keyvalues
+                .slice(1)
+                .map(function (v) {
+                    return [key, v];
+                });
+        }, function (multi, keyvalue) {
+            return multi.rpush(keyvalue[0], keyvalue[1]);
+        });
+    };
+    RedisReliableProducer.lproducer = RedisReliableProducer.lproducerrpush;
+
+    RedisReliableProducer.lproducerlpush = function (client) {
+        return new RedisReliableProducer(client, &#039;list&#039;, function (keyvalues) {
+            var key = keyvalues[0];
+            return keyvalues
+                .slice(1)
+                .map(function (v) {
+                    return [key, v];
+                });
+        }, function (multi, keyvalue) {
+            return multi.lpush(keyvalue[0], keyvalue[1]);
+        });
+    };
+
+    // Export the reliable object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `redismock` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = RedisReliableProducer;
+        }
+        exports.RedisReliableProducer = RedisReliableProducer;
+    } 
+    else {
+        root.RedisReliableProducer = RedisReliableProducer;
+    }
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

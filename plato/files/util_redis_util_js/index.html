@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>util/redis-util.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">61.41</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">212</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">82.38</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.37</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    var redis_util = {};
+
+    /**
+     * Check that a function is actually a function. If it is not, return a function that
+     * does nothing.
+     *
+     * @memberof! RarefiedRedis.Util
+     * @param {Function} f The function to check
+     */
+    redis_util.checkFunction = function (f) {
+        if (!f || typeof f !== &#039;function&#039;) {
+            return function () {};
+        }
+        return f;
+    };
+
+    /**
+     * Does the given variable exist? Existence here means that the variable is not
+     * undefined and does not equal null.
+     *
+     * @memberof! RarefiedRedis.Util
+     * @param {any} e Variable to check
+     */
+    redis_util.exists = function (e) {
+        return typeof e !== &#039;undefined&#039; &amp;&amp; e !== null;
+    };
+
+    /**
+     * Gather a function&#039;s arguments into a list of arguments and a callback.
+     * It is assumed that the callback is the last parameter to the function.
+     *
+     * @memberof! RarefiedRedis.Util
+     */
+    redis_util.gather = function (f, e) {
+        var end = f.length;
+        if (e) {
+            end = e;
+        }
+        return function () {
+            var idx, len = arguments.length;
+            var callback;
+            var list = [];
+            if (len &gt;= end) {
+                for (idx = len - 1; idx &gt;= end - 1; idx -= 1) {
+                    if (typeof arguments[idx] === &quot;function&quot; &amp;&amp; !callback) {
+                        callback = arguments[idx];
+                    }
+                    else if (redis_util.exists(arguments[idx])) {
+                        list.unshift(arguments[idx]);
+                    }
+                }
+            }
+            if ((end - 2) &gt;= 0) {
+                list.unshift(arguments[end - 2]);
+            }
+            return {
+                callback: redis_util.checkFunction(callback),
+                list: list
+            };
+        };
+    };
+
+    /**
+     * Apply forEach on the array to a function that takes a callback as 
+     * a 2nd paramter. Very similar to async&#039;s each.
+     *
+     * @memberof! RarefiedRedis.Util
+     * @param {Array} arr The array to apply forEach to.
+     * @param {Function} f Function that takes in (element, callback), and calls callback with (err).
+     * @param {Function} done What to call when we&#039;re done. Called with (err).
+     */
+    redis_util.asyncForEach = function (arr, f, done) {
+        var processed = 0;
+        var length = arr.length;
+        if (length === 0) {
+            return done(null);
+        }
+        arr.forEach(function (elem) {
+            f(elem, function (err) {
+                if (err) {
+                    return done(err);
+                }
+                processed += 1;
+                if (processed === length) {
+                    return done(null);
+                }
+            });
+        });
+    };
+
+    redis_util.to2sComplement = function (number, length) {
+        var tc, positive;
+        if (typeof number !== &#039;number&#039;) {
+            number = parseInt(number, 10);
+        }
+        if (isNaN(number)) {
+            return null;
+        }
+        if (number &lt; 0) {
+            tc = (~Math.abs(number) + 1 &gt;&gt;&gt; 0).toString(2);
+        }
+        else {
+            tc = &#039;0&#039; + (number &gt;&gt;&gt; 0).toString(2);
+        }
+        if (length) {
+            positive = tc.charAt(0) === &#039;0&#039;;
+            while (tc.length &lt; length) {
+                if (positive) {
+                    tc = &#039;0&#039; + tc;
+                }
+                else {
+                    tc = &#039;1&#039; + tc;
+                }
+            }
+            while (tc.length &gt; length) {
+                if (positive &amp;&amp; tc.charAt(1) === &#039;0&#039;) {
+                    tc = tc.substr(1);
+                }
+                else if (positive &amp;&amp; tc.charAt(1) !== &#039;0&#039;) {
+                    break;
+                }
+                else if (!positive &amp;&amp; tc.charAt(1) === &#039;1&#039;) {
+                    tc = tc.substr(1);
+                }
+                else if (!positive &amp;&amp; tc.charAt(1) !== &#039;0&#039;) {
+                    break;
+                }
+            }
+            if (tc.length !== length) {
+                return null;
+            }
+        }
+        return tc;
+    };
+
+    redis_util.to2sComplementAsBytes = function (number, length) {
+        var tc = redis_util.to2sComplement(number, length);
+        var string = &#039;&#039;, b = &#039;&#039;;
+        var idx, len;
+        if (tc === null) {
+            return null;
+        }
+        len = tc.length;
+        for (idx = len - 1; idx &gt;= 0; idx -= 1) {
+            b = tc.charAt(idx) + b;
+            if (b.length === 8) {
+                string += String.fromCharCode(parseInt(b, 2));
+                b = &#039;&#039;;
+            }
+        }
+        if (b.length &gt; 0) {
+            string += String.fromCharCode(parseInt(b, 2));
+        }
+        return string;
+    };
+
+    redis_util.from2sComplement = function (string) {
+        var positive;
+        if (typeof string !== &#039;string&#039;) {
+            return null;
+        }
+        positive = string.charAt(0) === &#039;0&#039;;
+        if (positive) {
+            return parseInt(string, 2);
+        }
+        return parseInt(string, 2) &lt;&lt; 0;
+    };
+
+    redis_util.from2sComplementAsBytes = function (string) {
+        var tc, idx, len, bin;
+        if (typeof string !== &#039;string&#039;) {
+            return null;
+        }
+        tc = &#039;&#039;;
+        len = string.length;
+        for (idx = len - 1; idx &gt;= 0; idx -= 1) {
+            bin = string.charCodeAt(idx).toString(2);
+            if (idx &lt; len - 1) {
+                while (bin.length &lt; 8) {
+                    bin = &#039;0&#039; + bin;
+                }
+            }
+            tc += bin;
+        }
+        return redis_util.from2sComplement(tc);
+    };
+
+    // Export the uuid object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `redismock` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = redis_util;
+        }
+        exports.redis_util = redis_util;
+    } 
+    else {
+        root.redis_util = redis_util;
+    }
+
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

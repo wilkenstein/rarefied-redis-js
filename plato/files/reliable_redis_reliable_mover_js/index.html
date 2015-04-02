@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>reliable/redis-reliable-mover.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">75.20</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">273</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">57.29</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.55</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, require:false */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    var cas = typeof require === &#039;function&#039; ? require(&#039;../concurrency/redis-cas.js&#039;) : root.redisCAS;
+    var checkFunction = typeof require === &#039;function&#039; ? require(&#039;../util/redis-util.js&#039;).checkFunction : root.redis_util.checkFunction;
+    var exists = typeof require === &#039;function&#039; ? require(&#039;../util/redis-util.js&#039;).exists : root.redis_util.exists;
+    var gather = typeof require === &#039;function&#039; ? require(&#039;../util/redis-util.js&#039;).gather : root.redis_util.gather;
+    var RedisListAdapter = typeof require === &#039;function&#039; ? require(&#039;../adapter/redis-list-adapter.js&#039;) : root.RedisListAdapter;
+
+    function typeCheck(client, source, dest, type, values, onOk, onError, callback) {
+        onOk = checkFunction(onOk);
+        onError = checkFunction(onError);
+        client.type(dest, function (err, t) {
+            if (err) {
+                return onError(err);
+            }
+            if (t !== type &amp;&amp; t !== &#039;none&#039;) {
+                return onError(new Error(&#039;WRONGTYPE Operation against a key holding the wrong kind of value&#039;));
+            }
+            onOk(client, source, dest, values, callback);
+        });
+    }
+
+    function execCallback(callback) {
+        callback = checkFunction(callback);
+        return function (err, replies, value) {
+            if (err) {
+                return callback(err);
+            }
+            if (replies === null) {
+                return callback(null, null);
+            }
+            callback(err, value);
+        };
+    }
+
+    function moveF(client, source, dest, type, values, getF, setMulti, callback) {
+        cas(client, source, function (client, key, cb) {
+            if (type === null) {
+                return getF(client, source, dest, values, callback);
+            }
+            typeCheck(client, source, dest, type, values, getF, callback, cb);
+        }, function (client, key, multi, value) {
+            var args;
+            if (!exists(value)) {
+                return multi;
+            }
+            args = [client, source, dest, multi].concat(Array.prototype.slice.call(arguments).slice(3));
+            return setMulti.apply(null, args);
+        }, execCallback(callback));
+    }
+
+    function moverF(type, getF, multiF) {
+        return function (client, source, dest, values, callback) {
+            moveF(client, source, dest, type, values, getF, multiF, callback);
+        };
+    }
+
+    /**
+     * Reliably move elements from one abstraction to another. Convenience methods
+     * for redis structures are provided.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * The semantics of moving mean taking a abstraction&#039;s element, removing it from
+     * that abstraction, and then putting it into another abstraction. Reliable moves
+     * ensure that
+     * &lt;ul&gt;
+     * &lt;li&gt; if something goes wrong during the move, the element remains
+     * in the original abstraction; &lt;/li&gt;
+     * &lt;li&gt; if the element is modified during the move, the element remains
+     * in the original abstraction. &lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @memberof! RarefiedRedis.Reliable
+     * @class
+     * @param {redisClient} client The client to use.
+     */
+    function RedisReliableMover(client, type, verifier, multier) {
+        this.client = client;
+        this.type = type;
+        this.verifier = verifier;
+        this.multier = multier;
+        return this;
+    }
+
+    RedisReliableMover.prototype.move = function (source, dest, callback) {
+        var g = gather(this.move).apply(null, arguments);
+        callback = g.callback;
+        moverF(this.type, this.verifier, this.multier)(this.client, source, dest, g.list.slice(1), callback);
+        return this;
+    };
+
+    /**
+     * Construct a string mover.
+     */
+    RedisReliableMover.strmover = function (client) {
+        return new RedisReliableMover(client, &#039;string&#039;, function (client, source, dest, values, cb) {
+            client.get(source, cb);
+        }, function (client, source, dest, multi, value) {
+            return multi.del(source).set(dest, value);
+        });
+    };
+
+    /**
+     * Construct a set mover.
+     */
+    RedisReliableMover.smover = function (client) {
+        var ismember = function (client, source, m, cb) {
+            client.sismember(source, m, function (err, reply) {
+                return cb(err, reply === 1 ? m : null);
+            });
+        };
+        return new RedisReliableMover(client, &#039;set&#039;, function (client, source, dest, values, cb) {
+            var member = values[0];
+            if (!exists(member)) {
+                return client.srandmember(source, function (err, m) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    ismember(client, source, m, cb);
+                });
+            }
+            ismember(client, source, member, cb);
+        }, function (client, source, dest, multi, value) {
+            return multi.smove(source, dest, value);
+        });
+    };
+
+    RedisReliableMover.zmover = function (client) {
+        var score;
+        var get = function (client, source, m, cb) {
+            client.zscore(source, m, function (err, reply) {
+                if (err) {
+                    return cb(err);
+                }
+                score = reply;
+                cb(null, !exists(score) ? null : m);
+            });
+        };
+        return new RedisReliableMover(client, &#039;zset&#039;,  function (client, source, dest, values, cb) {
+            var member = values[0];
+            if (!member) {
+                return client.zrange(source, 0, 0, function (err, reply) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    get(client, source, reply[0], cb);
+                });
+            }
+            get(client, source, member, cb);
+        }, function (client, source, dest, multi, value) {
+            return multi
+                .zrem(source, value)
+                .zadd(dest, score, value);
+        });
+    };
+
+    RedisReliableMover.hmover = function (client) {
+        return new RedisReliableMover(client, &#039;hash&#039;, function (client, source, dest, values, cb) {
+            var field = values[0];
+            client.hget(source, field, function (err, reply) {
+                return cb(err, reply, field);
+            });
+        }, function (client, source, dest, multi, value, field) {
+            return multi
+                .hdel(source, field)
+                .hset(dest, field, value);
+        });      
+    };
+
+    function lmoveindex(client, source, dest, values, cb) {
+        var sindex = values[0];
+        var dindex = values[1];
+        if (!exists(sindex)) {
+            return cb(new Error(&#039;ERR index out of range&#039;));
+        }
+        if (!exists(dindex)) {
+            dindex = sindex;
+        }
+        client.llen(dest, function (err, len) {
+            var indexF, pad;
+            if (err) {
+                return cb(err);
+            }
+            indexF = function () {
+                client.lindex(source, sindex, function (err, value) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    if (!exists(value)) {
+                        return cb(new Error(&#039;ERR index out of range&#039;));
+                    }
+                    cb(null, value, sindex, dindex);
+                });
+            };
+            if (len &lt;= dindex) {
+                pad = [];
+                while (len + pad.length &lt;= dindex) {
+                    pad.push(&#039;&#039;);
+                }
+                client.rpush.apply(client, [dest].concat(pad), function (err2) {
+                    if (err2) {
+                        return cb(err2);
+                    }
+                    indexF();
+                });
+            }
+            indexF();
+        });
+    }
+
+    function lmoveelement(client, source, dest, values, cb) {
+        var element = values[0];
+        (new RedisListAdapter(client, source)).indexOf(element, function (err, idx) {
+            if (err) {
+                return cb(err);
+            }
+            if (idx === -1) {
+                return cb(new Error(&#039;ERR index out of range&#039;));
+            }
+            lmoveindex(client, source, dest, [idx], cb);
+        });
+    }
+
+    RedisReliableMover.lmover = function (client) {
+        return new RedisReliableMover(client, &#039;list&#039;, function (client, source, dest, values, cb) {
+            if (values.length === 0) {
+                return client.lindex(source, -1, function (err, topop) {
+                    return cb(err, topop);
+                });
+            }
+            if (values.length === 1 &amp;&amp; typeof values[0] !== &#039;number&#039;) {
+                return lmoveelement(client, source, dest, values, function (err, value, sindex, dindex) {
+                    return cb(err, value, sindex, dindex);
+                });
+            }
+            lmoveindex(client, source, dest, values, function (err, value, sindex, dindex) {
+                return cb(err, value, sindex, dindex);
+            });
+        }, function (client, source, dest, multi, value, sindex, dindex) {
+            var val;
+            if (!exists(sindex)) {
+                return multi.rpoplpush(source, dest);
+            }
+            val = value + &#039;;&#039; + Math.random();
+            return multi
+                .lset(source, sindex, val)
+                .lrem(source, 1, val)
+                .lset(dest, dindex, value);
+        });
+    };
+
+    // Export the reliable object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `RedisReliableMover` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = RedisReliableMover;
+        }
+        exports.RedisReliableMover = RedisReliableMover;
+    } 
+    else {
+        root.RedisReliableMover = RedisReliableMover;
+    }
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

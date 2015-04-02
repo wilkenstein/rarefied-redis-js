@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>reliable/redis-reliable-locker.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">67.66</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">255</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">34.59</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.11</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, require:false */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    var cas = typeof require === &#039;function&#039; ? require(&#039;../concurrency/redis-cas.js&#039;) : root.redisCAS;
+    var RedisReliableDeleter = typeof require === &#039;function&#039; ? require(&#039;./redis-reliable-deleter.js&#039;) : root.RedisReliableDeleter;
+    var uuidv4 = typeof require === &#039;function&#039; ? require(&#039;../util/redis-uuid.js&#039;).v4 : root.redis_uuid.v4;
+    var checkFunction = typeof require === &#039;function&#039; ? require(&#039;../util/redis-util.js&#039;).checkFunction : root.redis_util.checkFunction;
+
+    /**
+     * Reliable lock. Reliable semantics here mean that a client can acquire the lock,
+     * no other clients can acquire the lock while another client has the lock, and the
+     * lock is &lt;i&gt;always&lt;/i&gt; unlocked after some period of time. However....
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * ...the locks implemented in this class are only &quot;reliable&quot; in the sense that, if everyone
+     * adheres to the given lock protocol, the resulting lock will be reliable. A malicious client
+     * can always come along and &lt;b&gt;forever hold the lock&lt;/b&gt; if it knows the key. It would
+     * do this by creating a multi that dels the key and sets it without an expiration.
+     * If this occurs, the lock can never be acquired by any client using RedisReliableLocker,
+     * &lt;b&gt;and there&#039;s no way around it&lt;/b&gt;.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * The only way to create a compeletely reliable distributed redlock is with a cryptographic
+     * locker running server-side scripts, and a redis instance the disables the &quot;keys&quot; and 
+     * &quot;scan&quot; commands. The first part is provided by RedisCryptoLocker! However,
+     * that class will only work with redis versions &gt;= 2.6.0 that have the Lua scripting engine.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * So, if you trust all of your client implementations, then this locker will provide
+     * reliable lock semantics. If you do not trust all your client implementations, then
+     * RedisCryptoLocker should be used.
+     *
+     * @memberof! RarefiedRedis.Reliable
+     * @class
+     * @param {redisClient} client The redis client.
+     * @param {string} key The resource name to lock on.
+     * @see {RarefiedRedis.Crypto.RedisCryptoLocker}
+     */
+    function RedisReliableLocker(client, key) {
+        this.client = client;
+        this.key = key;
+        this.deleter = RedisReliableDeleter.strdeleter(this.client);
+        return this;
+    }
+
+    /**
+     * Implementation of the single instance Redlock protocol.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE: This version of redlock &lt;i&gt;does not&lt;/i&gt; work with redis versions below
+     * 2.6.12, as they do not accept the nx &amp; ex parameters in set. An error will be
+     * returned by the redis server in response to this version if the redis sever&#039;s version is 
+     * &lt; 2.6.12.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE 2: This version of redlock uses &lt;b&gt;seconds&lt;/b&gt;, not milliseconds, for expiry of the
+     * lock. This ensures that redlock2612 is compatible with other redlock implementations where
+     * pexpire is not available.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE 3: No version of redlock is completely reliable, because any client can
+     * come along and, if they know the key, aquire the lock and keep it forever, starving all other
+     * gentlemanly lockers out. All clients have to agree to adhere to the
+     * protocol, and there&#039;s currently no mechanism in redis to enforce this agreement.
+     * TODO: This shortcoming can be overcome through the use of cryptography, but that requires
+     * the redis crypto abstractions, which have not been created yet! And that will only work
+     * for redis version &gt;= 2.6.0 when lua support was added.
+     *
+     * @param {seconds} timeout The number of seconds to hold the lock.
+     * @param {function} callback Called with (err, locked, id). locked = OK if the lock was acquired, else null. id = the unique ID generated for the lock.
+     *
+     * @see {@link http://redis.io/topics/distlock}
+     */
+    RedisReliableLocker.prototype.redlock2612 = function (timeout, callback) {
+        var id = uuidv4();
+        var key = this.key;
+        if (!timeout || typeof timeout !== &#039;number&#039;) {
+            timeout = 1; // 1 second by default.
+        }
+        callback = checkFunction(callback);
+        this.client.set(key, id, &#039;nx&#039;, &#039;ex&#039;, timeout, function (err, locked) {
+            if (err) {
+                return callback(err);
+            }
+            callback(null, locked, id);
+        });
+        return this;
+    };
+    /**
+     * An alias for redlock2612. Should be set to redlock2200 if 2.2.0 &lt;= redis version &lt; 2.6.12.
+     */
+    RedisReliableLocker.prototype.redlock = RedisReliableLocker.prototype.redlock2612;
+    /**
+     * An alias for redlock2612. Should be set to redlock2200 if 2.2.0 &lt;= redis version &lt; 2.6.12.
+     */
+    RedisReliableLocker.prototype.lock = RedisReliableLocker.prototype.redlock2612;
+
+    /**
+     * Implementation of the single instance Redlock protocol.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE: This version of redlock is compatible with versions of redis &gt;= 2.2.0. However,
+     * it is slower and more cumbersome than redlock2612. It uses optimistic concurrency
+     * to implement redlock. For redis versions greater than or equal to 2.6.12,
+     * redlock2612 should be preferred.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE 2: No version of redlock is completely reliable, because any client can
+     * come along and, if they know the key, aquire the lock and keep it forever, starving all other
+     * gentlemanly lockers out. All clients have to agree to adhere to the
+     * protocol, and there&#039;s currently no mechanism in redis to enforce this agreement.
+     * TODO: This shortcoming can be overcome through the use of cryptography, but that requires
+     * the redis crypto abstractions, which have not been created yet! And that will only work
+     * for redis version &gt;= 2.6.0 when lua support was added.
+     *
+     * @param {seconds} timeout The number of seconds to hold the lock.
+     * @param {function} callback Called with (err, locked, id). locked = OK if the lock was acquired, else null. id = the unique ID generated for the lock.
+     *
+     * @see {@link http://redis.io/topics/distlock}
+     */
+    RedisReliableLocker.prototype.redlock2200 = function (timeout, callback) {
+        var that = this;
+        var id = uuidv4();
+        if (!timeout || typeof timeout !== &#039;number&#039;) {
+            timeout = 1; // 1 second by default.
+        }
+        callback = checkFunction(callback);
+        cas(this.client, this.key, function (client, key, cb) {
+            client.get(key, cb);
+        }, function (client, key, multi, value) {
+            if (value) {
+                // No reason trying to lock, we won&#039;t be able to.
+                return multi;
+            }
+            return multi
+                .setnx(that.key, id)
+                .expire(that.key, timeout);
+        }, function (err, replies) {
+            if (err) {
+                return callback(err);
+            }
+            if (!replies || replies.length &lt; 2) {
+                return callback(null, null, id);
+            }
+            callback(null, &#039;OK&#039;, id);
+        });
+        return this;
+    };
+
+    /**
+     * Implementation of the single instance Redlock protocol for almost any redis version.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * This version is reliable, but a key could be held for an arb
+     */
+    RedisReliableLocker.prototype.redlockCompatible = function (timeout, maxTimeout, callback) {
+        timeout = parseInt(timeout, 10);
+        if (isNaN(timeout)) {
+            timeout = 30; // 30s
+        }
+        maxTimeout = parseInt(maxTimeout, 10);
+        if (isNaN(maxTimeout)) {
+            maxTimeout = 3600; // 1h
+        }
+        timeout = Math.min(timeout, maxTimeout);
+        // TODO
+        return callback(new Error(&#039;UNIMPLEMENTED&#039;));
+    };
+
+    /**
+     * Unlock a redlock redis lock. Allows clients to specifically unlock a redlock
+     * before its expiry.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE: No version of redlock is completely reliable, because any client can
+     * come along and, if they know the key, aquire the lock and keep it forever, starving all other
+     * gentlemanly lockers out. All clients have to agree to adhere to the
+     * protocol, and there&#039;s currently no mechanism in redis to enforce this agreement.
+     * TODO: This shortcoming can be overcome through the use of cryptography, but that requires
+     * the redis crypto abstractions, which have not been created yet! And that will only work
+     * for redis version &gt;= 2.6.0 when lua support was added.
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * @param {redisClient} client The client to unlock against
+     * @param {string} key The name of the resource to unlock.
+     * @param {string} id The unique ID that was generated for this redlock. Disallows other clients not holding the lock from releasing the lock.
+     * @param {redisCallback} callback reply = 1 if unlocked, else = 0.
+     */
+    RedisReliableLocker.prototype.redlockUnlock = function (id, callback) {
+        callback = checkFunction(callback);
+        this.deleter.del(this.key, id, function (err, replies) {
+            if (err) {
+                return callback(err);
+            }
+            if (!replies) {
+                return callback(null, 0);
+            }
+            callback(null, 1);
+        });
+        return this;
+    };
+    /**
+     * An alias for redlockUnlock.
+     */
+    RedisReliableLocker.prototype.redunlock = RedisReliableLocker.prototype.redlockUnlock;
+    /**
+     * An alias for redlockUnlock.
+     */
+    RedisReliableLocker.prototype.unlockRedlock = RedisReliableLocker.prototype.redlockUnlock;
+    /**
+     * An alias for redlockUnlock.
+     */
+    RedisReliableLocker.prototype.unlock = RedisReliableLocker.prototype.redlockUnlock;
+
+    /**
+     * Is the lock locked?
+     *
+     * @param {string} id The id of this lock.
+     * @param {redisCallback} callback reply = 1 if locked, = 0 if not locked.
+     */
+    RedisReliableLocker.prototype.locked = function (id, callback) {
+        callback = checkFunction(callback);
+        this.client.get(this.key, function (err, reply) {
+            if (err) {
+                return callback(err);
+            }
+            if (reply !== id) {
+                return callback(null, 0);
+            }
+            callback(null, 1);
+        });
+        return this;
+    };
+
+    // Export the reliable object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `redismock` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = RedisReliableLocker;
+        }
+        exports.RedisReliableLocker = RedisReliableLocker;
+    } 
+    else {
+        root.RedisReliableLocker = RedisReliableLocker;
+    }
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>rarefied-redis.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">65.98</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">165</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">40.38</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.48</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, require:false */
+
+/**
+ * @namespace RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    /**
+     * The base rarefied redis object. In CommonJS environments, it will include
+     * and export all the rarefied abstractions.
+     */
+    var rarefied_redis = {};
+
+    if (typeof require === &#039;function&#039;) {
+        rarefied_redis.redis_util = require(&#039;./util/redis-util.js&#039;);
+        rarefied_redis.redis_uuid = require(&#039;./util/redis-uuid.js&#039;);
+        rarefied_redis.RedisListAdapter = require(&#039;./adapter/redis-list-adapter.js&#039;);
+        rarefied_redis.RedisScanner = require(&#039;./util/redis-scanner.js&#039;);
+        rarefied_redis.RedisExpirer = require(&#039;./util/redis-expirer.js&#039;);
+        rarefied_redis.RedisReliableDeleter = require(&#039;./reliable/redis-reliable-deleter.js&#039;);
+        rarefied_redis.RedisReliableLocker = require(&#039;./reliable/redis-reliable-locker.js&#039;);
+        rarefied_redis.RedisReliableMover = require(&#039;./reliable/redis-reliable-mover.js&#039;);
+        rarefied_redis.RedisReliableProducer = require(&#039;./reliable/redis-reliable-producer.js&#039;);
+        rarefied_redis.RedisReliableConsumer = require(&#039;./reliable/redis-reliable-consumer.js&#039;);
+        rarefied_redis.RedisConcurrency = require(&#039;./concurrency/redis-concurrency.js&#039;);
+        rarefied_redis.redisCAS = require(&#039;./concurrency/redis-cas.js&#039;);
+    }
+    else {
+        rarefied_redis.redis_util = root.redis_util;
+        rarefied_redis.redis_uuid = root.redis_uuid;
+        rarefied_redis.RedisListAdapter = root.RedisListAdapter;
+        rarefied_redis.RedisScanner = root.RedisScanner;
+        rarefied_redis.RedisExpirer = root.RedisExpirer;
+        rarefied_redis.RedisReliableDeleter = root.RedisReliableDeleter;
+        rarefied_redis.RedisReliableLocker = root.RedisReliableLocker;
+        rarefied_redis.RedisReliableMover = root.RedisReliableMover;
+        rarefied_redis.RedisReliableProducer = root.RedisReliableProducer;
+        rarefied_redis.RedisReliableConsumer = root.RedisReliableConsumer;
+        rarefied_redis.RedisConcurrency = root.RedisConcurrency;
+        rarefied_redis.redisCAS = root.redisCAS;
+    }
+
+    function toPromise(f, context, deferFactory) {
+        return function () {
+            // Remove the formal callback parameter and make it a promise instead.
+            var args = Array.prototype.slice.call(arguments);
+            var deferred = deferFactory(), promise;
+            var callback;
+            while (args.length &lt; f.length - 1) {
+                args.push(undefined);
+            }
+            if (args.length === f.length &amp;&amp; typeof args[args.length - 1] === &#039;function&#039;) {
+                // Hm, someone passed in the callback, so we should probably honor it when we can.
+                callback = args[args.length - 1];
+                args.pop();
+            }
+            args.push(function (err/*, replies...*/) {
+                var fargs = Array.prototype.slice.call(arguments).slice(1);
+                if (err) {
+                    if (callback &amp;&amp; typeof callback === &#039;function&#039;) {
+                        callback(err);
+                    }
+                    return deferred.reject(err);
+                }
+                if (callback &amp;&amp; typeof callback === &#039;function&#039;) {
+                    callback.apply(null, [null].concat(fargs));
+                }
+                if (fargs.length === 1) {
+                    return deferred.resolve(fargs[0]);
+                }
+                deferred.resolve(fargs);
+            });
+            f.apply(context, args);
+            promise = deferred.promise;
+            if (typeof promise === &#039;function&#039;) {
+                promise = promise();
+            }
+            return promise;
+        };
+    }
+    rarefied_redis.toPromise = toPromise;
+
+    var blacklist = [
+        &#039;debug&#039;
+    ];
+
+    rarefied_redis.toPromiseStyle = function (abstraction, deferFactory) {
+        var key, keys = [];
+        for (key in abstraction) {
+            keys.push(key);
+        }
+        return keys
+            .filter(function (key) {
+                return typeof abstraction[key] === &#039;function&#039;;
+            })
+            .map(function (key) {
+                if (blacklist.indexOf(key) !== -1) {
+                    return [key];
+                }
+                return [key, toPromise(abstraction[key], abstraction, deferFactory)];
+            })
+            .reduce(function (promised, f) {
+                if (f.length === 1) {
+                    promised[f[0]] = function () {
+                        return abstraction[f[0]].apply(abstraction, arguments);
+                    };
+                }
+                else {
+                    promised[f[0]] = f[1];
+                }
+                return promised;
+            }, {});
+    };
+
+    var fkeys = [];
+    var fblacklist = [&#039;toPromiseStyle&#039;, &#039;toPromise&#039;, &#039;RedisConcurrency&#039;, &#039;redisCAS&#039;];
+    for (var key in rarefied_redis) {
+        if (typeof rarefied_redis[key] === &#039;function&#039;) {
+            fkeys.push(key);
+        }
+    }
+    fkeys.forEach(function (key) {
+        if (fblacklist.indexOf(key) === -1) {
+            rarefied_redis[key].prototype.toPromiseStyle = function (deferFactory) {
+                return rarefied_redis.toPromiseStyle(this, deferFactory);
+            };
+            rarefied_redis[key].prototype.bind = function () {
+                var that = this;
+                var fs = [], k;
+                for (k in this) {
+                    if (typeof this[k] === &#039;function&#039;) {
+                        fs.push(k);
+                    }
+                }
+                return fs.reduce(function (bound, fkey) {
+                    bound[fkey] = function () {
+                        that[fkey].apply(that, arguments);
+                    };
+                    return bound;
+                }, {});
+            };
+        }
+    });
+
+    // Export all the Rarefied Redis objects for **node.js/io.js** with
+    // backwards-compatiblity for the old `require()` API. If we&#039;re in
+    // the browser, re-export the abstractions.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = rarefied_redis;
+        }
+        fkeys.forEach(function (key) {
+            exports[key] = rarefied_redis[key];
+        });
+    }
+    else {
+        fkeys.forEach(function (key) {
+            root[key] = rarefied_redis[key];
+        });
+    }
+
+}).call(this);
+
+/**
+ * The standard redis javascript callback.
+ * @callback redisCallback
+ * @param {err} err The error, or null if no error.
+ * @param {reply} reply The redis reply.
+ */
+
+/**
+ * The redis client.
+ * @typedef {Object} redisClient
+ */
+
+/**
+ * @memberof RarefiedRedis
+ * @namespace Util
+ */
+
+/**
+ * @memberof RarefiedRedis
+ * @namespace Adapter
+ */
+
+/**
+ * @memberof RarefiedRedis
+ * @namespace Reliable
+ */
+
+/**
+ * @memberof RarefiedRedis
+ * @namespace Crypto
+ */
+
+/**
+ * @memberof RarefiedRedis
+ * @namespace Queue
+ */
+
+/**
+ * @memberof RarefiedRedis
+ * @namespace TimeSeries
+ */</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>
