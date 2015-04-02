@@ -174,6 +174,21 @@
         });
     };
 
+    RedisReliableProducer.lboundedproducer = function (client, bound) {
+        return new RedisReliableProducer(client, 'list', function (keyvalues) {
+            var key = keyvalues[0];
+            return keyvalues
+                .slice(1)
+                .map(function (v) {
+                    return [key, v];
+                });
+        }, function (multi, keyvalue) {
+            return multi
+                .lpush(keyvalue[0], keyvalue[1])
+                .ltrim(keyvalue[0], -bound, -1);
+        });
+    };
+
     // Export the reliable object for **node.js/io.js**, with
     // backwards-compatibility for the old `require()` API. If we're in
     // the browser, add `redismock` as a global object.

@@ -138,7 +138,7 @@
                 else if (!positive && tc.charAt(1) === '1') {
                     tc = tc.substr(1);
                 }
-                else if (!positive && tc.charAt(1) !== '0') {
+                else if (!positive && tc.charAt(1) !== '1') {
                     break;
                 }
             }

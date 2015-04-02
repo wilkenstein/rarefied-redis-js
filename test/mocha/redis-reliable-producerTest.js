@@ -239,6 +239,116 @@
         xit('should reliably produce list elements');
     });
 
+    describe('lboundedproducer', function () {
+        it('should produce a list value', function (done) {
+            var k = randkey();
+            var v = 'v';
+            var producer = RedisReliableProducer.lboundedproducer(rc, 10).toPromiseStyle(Q.defer);
+            producer
+                .produce(k, v)
+                .then(function () {
+                    return rc.llen(k);
+                })
+                .then(function (reply) {
+                    expect(reply).to.equal(1);
+                    return rc.lindex(k, 0);
+                })
+                .then(function (reply) {
+                    expect(reply).to.equal(v);
+                    done();
+                })
+                .fail(function (err) {
+                    done(err);
+                })
+                .done();
+        });
+        it('should not produce anything if the key is not a list', function (done) {
+            var k = randkey();
+            var v = 'v', v2 = 'v2';
+            var producer = RedisReliableProducer.lboundedproducer(rc, 10).toPromiseStyle(Q.defer);
+            rc
+                .set(k, v)
+                .then(function () {
+                    return producer.produce(k, v2)
+                })
+                .then(function () {
+                    return rc.type(k);
+                })
+                .then(function (reply) {
+                    expect(reply).to.equal('string');
+                    return rc.get(k);
+                })
+                .then(function (reply) {
+                    expect(reply).to.equal(v);
+                    done();
+                })
+                .fail(function (err) {
+                    done(err);
+                })
+                .done();
+        });
+        it('should produce list values', function (done) {
+            var k = randkey();
+            var v1 = 'v1', v2 = 'v2', v3 = 'v3';
+            var producer = RedisReliableProducer.lboundedproducer(rc, 10).toPromiseStyle(Q.defer);        
+            producer
+                .produce(k, v1, v2, v3)
+                .then(function () {
+                    return rc.llen(k);
+                })
+                .then(function (reply) {
+                    expect(reply).to.equal(3);
+                    return rc.lrange(k, 0, -1);
+                })
+                .then(function (reply) {
+                    expect(reply).to.have.lengthOf(3);
+                    expect(reply[0]).to.equal(v3);
+                    expect(reply[1]).to.equal(v2);
+                    expect(reply[2]).to.equal(v1);
+                    done();
+                })
+                .fail(function (err) {
+                    done(err);
+                })
+                .done();
+        });
+        it('should bound the list', function (done) {
+            var k = randkey();
+            var vs = [];
+            var producer = RedisReliableProducer.lboundedproducer(rc, 10).toPromiseStyle(Q.defer);        
+            var idx, len = 11;
+            for (idx = 0; idx < len; idx += 1) {
+                vs.push(idx);
+            }
+            producer
+                .produce
+                .apply(producer, [k].concat(vs))
+                .then(function (reply) {
+                    expect(reply).to.have.lengthOf(2);
+                    expect(reply[0]).to.have.lengthOf(11*2);
+                    expect(reply[0][reply[0].length - 2]).to.equal(11);
+                    return rc.llen(k);
+                })
+                .then(function (reply) {
+                    expect(reply).to.equal(10);
+                    return rc.lrange(k, 0, -1);
+                })
+                .then(function (reply) {
+                    expect(reply).to.have.lengthOf(10);
+                    len = reply.length;
+                    for (idx = 0; idx < len; idx += 1) {
+                        expect(reply[idx]).to.equal(10 - idx - 1);
+                    }
+                    done();
+                })
+                .fail(function (err) {
+                    done(err);
+                })
+                .done();
+        });
+        xit('should reliably produce list elements');
+    });
+
     describe('sproducer', function () {
     });
 
