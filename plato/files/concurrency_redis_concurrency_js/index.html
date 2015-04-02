@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>concurrency/redis-concurrency.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">69.07</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">336</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">74.42</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.30</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">/* jshint unused:true, undef:true, strict:true, plusplus:true */
+/* global module:false, exports:true, setTimeout:false */
+
+/**
+ * @memberof RarefiedRedis
+ */
+(function () {
+
+    // Baseline setup
+    // --------------
+
+    &quot;use strict&quot;;
+
+    // Establish the root object, `window` in the browser, or `exports` on the server.
+    var root = this;
+
+    function checkFunction(f) {
+        if (!f || typeof f !== &#039;function&#039;) {
+            return function () {
+                if (typeof arguments[arguments.length - 1] === &#039;function&#039;) {
+                    arguments[arguments.length - 1](new Error(&#039;checkFunction: given f was not a function&#039;));
+                }
+            };
+        }
+        return f;
+    }
+
+    function optimism(f, context, maxOptimism, callback) {
+        var tries = 1;
+        var of;
+        callback = checkFunction(callback);
+        f = checkFunction(f);
+        of = function () {
+            var original = arguments;
+            var args = Array.prototype.slice.call(arguments);
+            while (args.length &lt; f.length - 1) {
+                args.push(undefined);
+            }
+            if (args.length === f.length &amp;&amp; typeof args[args.length - 1] === &#039;function&#039;) {
+                args.pop();
+            }
+            args.push(function (err, replies) {
+                if (err) {
+                    return callback(err);
+                }
+                if (replies === null) {
+                    if (!maxOptimism || tries &lt; maxOptimism) {
+                        tries += 1;
+                        return setTimeout(function () {
+                            of.apply(null, original);
+                        }, Math.ceil(Math.random()*100)); // Back off randomly anywhere between 0+ms - 999ms.
+                    }
+                    return callback(new Error(&#039;ERR optimistic concurrency failed&#039;));
+                }
+                callback(null, replies);
+            });
+            f.apply(context, args);
+        };
+        return of;
+    }
+
+    function pessimism(f, context, maxPessimism, locker, timeout, callback) {
+        var tries = 1;
+        var pf;
+        callback = checkFunction(callback);
+        f = checkFunction(f);
+        pf = function () {
+            var original = arguments;
+            locker.lock(timeout, function (err, locked, id) {
+                var args = Array.prototype.slice.call(original);
+                if (err) {
+                    return callback(err);
+                }
+                if(!locked) {
+                    if (!maxPessimism || tries &lt; maxPessimism) {
+                        tries += 1;
+                        return setTimeout(function () {
+                            pf.apply(null, original);
+                        }, Math.ceil(Math.random()*100)); // Back off randomly anywhere between 0+ms - 999ms.
+                    }
+                    return callback(new Error(&#039;ERR pessimistic concurrency failed&#039;));
+                }
+                while (args.length &lt; f.length - 1) {
+                    args.push(undefined);
+                }
+                if (args.length === f.length &amp;&amp; typeof args[args.length - 1] === &#039;function&#039;) {
+                    args.pop();
+                }
+                args.push(function (err, reply) {
+                    if (err) {
+                        return callback(err);
+                    }
+                    locker.unlock(id, function (err2, unlocked) {
+                        if (err2) {
+                            return callback(err2);
+                        }
+                        if (!unlocked) {
+                            // We lost the lock before completion, so the operation
+                            // is invalid.
+                            return callback(null, null);
+                        }
+                        callback(null, reply);
+                    });
+                });
+                args.push(locker);
+                args.push(id);
+                f.apply(context, args);
+            });
+        };
+        return pf;
+    }
+
+    /**
+     * Implement concurrency operations within redis. This abstraction exposes 2 interfaces
+     * for concurrency: optimistic concurrency, and pessimistic concurrency. It&#039;s also
+     * written in a literate style. An example of using this class:
+     *
+     * &lt;pre&gt;&lt;code&gt;
+     * var mover = new RedisReliableMover(redisClient);
+     * (new RedisConcurrency(new RedisReliableLock(redisClient, lockKey)))
+     *     .should
+     *     .be
+     *     .optimistic
+     *     .on(mover.move, mover)
+     *     .and
+     *     .tell(function (err, member) {
+     *           // Do stuff.
+     *     })
+     *     .when
+     *     .invokedWith(key1, key2);
+     * &lt;/code&gt;&lt;/pre&gt;
+     *
+     * This piece of code will try optimistic concurrency 10 times on mover.move(key1, key2).
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE: Pessimistic concurrency uses a lock to enforce its pessimism. We only allow
+     * that lock to be locked for some maximum time, currently 1h, in case the process dies
+     * while holding the lock. Let&#039;s say the operation
+     * pulls a key&#039;s value from redis, asks a different service to manipulate it, then sets
+     * the key to this new value in redis. If that different service takes &gt; 30s to respond,
+     * the lock will have expired and is no longer valid. To allow pessimistic functions to
+     * check this condition, the locker and lock id are passed to the function &lt;i&gt;after&lt;/i&gt;
+     * the callback. The operation can then check whether its lock is still valid before
+     * setting the key in redis. This timeout can be extended using the 2nd parameter
+     * to atMost, up to 1 hour (3600 seconds).
+     * &lt;br/&gt;
+     * &lt;br/&gt;
+     * NOTE 2: Both optimistic concurrency and pessimistic concurrency are protocols, and
+     * can be livelocked by a client not adhering to the protocol. For instance, in 
+     * optimistic concurrency, a producer that is heavily modifying a structure while we&#039;re
+     * trying to do optimistic concurrency can starve any optimistic producer out. Just like
+     * with redlocks, redis currently has no ability to enforce these protocols.
+     *
+     * @memberof! RarefiedRedis.Reliable
+     * @class
+     * @param {Object=} locker An object that implements lock semantics. This locker does pessimistic locking. If only doing optimistic concurrency, this parameter is not required.
+     */
+    function RedisConcurrency(locker) {
+        var that = this;
+        this._times = 10;
+        this._f = 0;
+        this._locker = locker;
+        this._timeout = 30; // seconds!
+        this.should = this;
+        this.be = this;
+        this.times = this;
+        this.and = this;
+        this.when = this;
+        this.optimistic = {
+            on: function () {
+                that.on.apply(that, arguments);
+                return that.optimistic;
+            },
+            tell: function () {
+                that.tell.apply(that, arguments);
+                return that.optimistic;
+            },
+            invokedWith: function () {
+                var args = arguments;
+                var f;
+                f = optimism(that._f, that._context, that._times, that._callback);
+                setTimeout(function () {
+                    f.apply(null, args);
+                }, 0);
+                return that;
+            },
+        };
+        this.optimistic.about = this.optimistic.on;
+        this.optimistic.attempt = this.optimistic;
+        this.optimistic.and = this.optimistic;
+        this.optimistic.when = this.optimistic;
+        this.optimistic.invoked = this.optimistic.invokedWith;
+        this.pessimistic = {
+            on: function () {
+                that.on.apply(that, arguments);
+                return that.pessimistic;
+            },
+            tell: function () {
+                that.tell.apply(that, arguments);
+                return that.pessimistic;
+            },
+            invokedWith: function () {
+                var args = arguments;
+                var f;
+                f = pessimism(that._f, that._context, that._times, that._locker, that._timeout, that._callback);
+                setTimeout(function () {
+                    f.apply(null, args);
+                }, 0);
+                return that;
+            }
+        };
+        this.pessimistic.about = this.pessimistic.on;
+        this.pessimistic.attempt = this.pessimistic;
+        this.pessimistic.and = this.pessimistic;
+        this.pessimistic.when = this.pessimistic;
+        this.pessimistic.invoked = this.pessimistic.invokedWith;
+        this.eeyore = this.pessimistic;
+        return this;
+    }
+
+    /**
+     * Specify the operation to do concurrency on.
+     *
+     * @param {Function} f The function that does the operation.
+     * @param {Object} context The context to call f with.
+     */
+    RedisConcurrency.prototype.on = function (f, context) {
+        this._f = checkFunction(f);
+        this._context = context;
+        return this;
+    };
+    RedisConcurrency.prototype.about = RedisConcurrency.prototype.on;
+    RedisConcurrency.prototype.attempt = RedisConcurrency.prototype.on;
+
+    /**
+     * Specify who to tell on whether the operation succeeded or failed.
+     *
+     * @param {Function} callback The callback to call when the operation is done. The reply will always be (null, null) if the operation failed. Anything else is context-specific to the concurrenct function.
+     */
+    RedisConcurrency.prototype.tell = function (callback) {
+        this._callback = checkFunction(callback);
+        return this;
+    };
+
+    /**
+     * Specify how many times the concurrency should try before giving up.
+     *
+     * For optimistic concurrency, this number decides how many times to
+     * attempt the operation before bailing.
+     *
+     * For pessimistic concurrency, this number decides how many times to
+     * attempt to lock the resource before bailing.
+     *
+     * If the number given here is 0, we will never bail on the operation,
+     * just keep trying.
+     *
+     * Negative times numbers are equivalent to 1. So atMost(-5) = atMost(1).
+     *
+     * Also, for pessimistic concurrency, you can pass a second timeout parameter 
+     * that determines how long the operation has to complete before being considered 
+     * invalid. This number is validated to be greater than 0 and less than 1 hour
+     * (3600 seconds). It is specified in seconds.
+     *
+     * @param {number} t times to attempt the operation. = 0 to attempt forever.
+     * @param {number=} timeout Determines in pessimistic concurrency how long an operation has to complete. Always validated such that 0 &lt; timeout &lt;= 3600.
+     */
+    RedisConcurrency.prototype.atMost = function (t, timeout) {
+        this._times = t;
+        if (isNaN(parseInt(this._times, 10))) {
+            this._times = 10;
+        }
+        this._timeout = timeout;
+        if (!this._timeout || isNaN(parseInt(this._timeout, 10)) || this._timeout &lt;= 0) {
+            this._timeout = 30;
+        }
+        this._timeout = Math.min(3600, this._timeout);
+        return this;
+    };
+
+    /**
+     * Invoke the chain
+     */
+    RedisConcurrency.prototype.invokedWith = function () {
+        // If we&#039;re called invokedWith on a naked concurrency object,
+        // assume we are optimistic.
+        this.optimistic.invokedWith.apply(null, arguments);
+        return this.optimistic;
+    };
+    RedisConcurrency.prototype.invoked = RedisConcurrency.prototype.invokedWith;
+
+    /**
+     * Return a concurrency object that only does optimistic concurrency.
+     */
+    RedisConcurrency.Optimistic = function () {
+        var concurrency = new RedisConcurrency();
+        var invokedWith = function () {
+            return concurrency
+                .optimistic
+                .invokedWith
+                .apply(concurrency, arguments);
+        };
+        concurrency.pessimistic = undefined;
+        concurrency.attempt = concurrency.about;
+        concurrency.invokedWith = invokedWith;
+        concurrency.invoked = invokedWith;
+        return concurrency;
+    };
+
+    /**
+     * Return a concurrency object that only does pessimistic concurrency.
+     *
+     * @param {Object} locker An object that implements lock semantics.
+     */
+    RedisConcurrency.Pessimistic = function (locker) {
+        var concurrency = new RedisConcurrency(locker);
+        var invokedWith = function () {
+            return concurrency
+                .pessimistic
+                .invokedWith
+                .apply(concurrency, arguments);
+        };
+        concurrency.optimistic = undefined;
+        concurrency.attempt = concurrency.about;
+        concurrency.invokedWith = invokedWith;
+        concurrency.invoked = invokedWith;
+        return concurrency;
+    };
+
+    // Export the reliable object for **node.js/io.js**, with
+    // backwards-compatibility for the old `require()` API. If we&#039;re in
+    // the browser, add `RedisConcurrency` as a global object.
+    if (typeof exports !== &#039;undefined&#039;) {
+        if (typeof module !== &#039;undefined&#039; &amp;&amp; module.exports) {
+            exports = module.exports = RedisConcurrency;
+        }
+        exports.RedisConcurrency = RedisConcurrency;
+    } 
+    else {
+        root.RedisConcurrency = RedisConcurrency;
+    }
+
+}).call(this);</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>
