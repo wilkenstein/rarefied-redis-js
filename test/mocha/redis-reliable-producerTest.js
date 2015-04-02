@@ -337,7 +337,7 @@
                     expect(reply).to.have.lengthOf(10);
                     len = reply.length;
                     for (idx = 0; idx < len; idx += 1) {
-                        expect(reply[idx]).to.equal(10 - idx - 1);
+                        expect(parseInt(reply[idx], 10)).to.equal(10 - idx - 1);
                     }
                     done();
                 })

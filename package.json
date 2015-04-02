@@ -6,7 +6,7 @@
         "url": "git://github.com/wilkenstein/rarefied-redis-js.git"
     },
     "main": "rarefied-redis.js",
-    "version": "0.0.1-3",
+    "version": "0.0.1-4",
     "devDependencies": {
         "redis-js": "0.0.9-5",
         "redis": "~0.12",

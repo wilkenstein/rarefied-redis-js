@@ -158,6 +158,10 @@ Tests should use the rarefied_redis object to get at the Abstraction. For exampl
 ## Roadmap
 
 ## Versions
+
+* 0.0.1-3
+  - Implement a bounded reliable list producer.
+  - Fix a bug in redis_util.to2sComplement.
 * 0.0.1-2
   - Some Abstractions implemented.
   - Implemented Abstractions unit-tested against node.
